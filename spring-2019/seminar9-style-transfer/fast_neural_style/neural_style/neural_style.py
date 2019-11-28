@@ -12,9 +12,9 @@ from torchvision import datasets
 from torchvision import transforms
 import torch.onnx
 
-import utils
-from transformer_net import TransformerNet
-from vgg import Vgg16
+from .utils import load_image, save_image, normalize_batch, gram_matrix
+from .transformer_net import TransformerNet
+from .vgg import Vgg16
 
 
 def check_paths(args):
@@ -52,12 +52,12 @@ def train(args):
         transforms.ToTensor(),
         transforms.Lambda(lambda x: x.mul(255))
     ])
-    style = utils.load_image(args.style_image, size=args.style_size)
+    style = load_image(args.style_image, size=args.style_size)
     style = style_transform(style)
     style = style.repeat(args.batch_size, 1, 1, 1).to(device)
 
-    features_style = vgg(utils.normalize_batch(style))
-    gram_style = [utils.gram_matrix(y) for y in features_style]
+    features_style = vgg(normalize_batch(style))
+    gram_style = [gram_matrix(y) for y in features_style]
 
     for e in range(args.epochs):
         transformer.train()
@@ -72,8 +72,8 @@ def train(args):
             x = x.to(device)
             y = transformer(x)
 
-            y = utils.normalize_batch(y)
-            x = utils.normalize_batch(x)
+            y = normalize_batch(y)
+            x = normalize_batch(x)
 
             features_y = vgg(y)
             features_x = vgg(x)
@@ -82,7 +82,7 @@ def train(args):
 
             style_loss = 0.
             for ft_y, gm_s in zip(features_y, gram_style):
-                gm_y = utils.gram_matrix(ft_y)
+                gm_y = gram_matrix(ft_y)
                 style_loss += mse_loss(gm_y, gm_s[:n_batch, :, :])
             style_loss *= args.style_weight
 
@@ -122,7 +122,7 @@ def train(args):
 def stylize(args):
     device = torch.device("cuda" if args.cuda else "cpu")
 
-    content_image = utils.load_image(args.content_image, scale=args.content_scale)
+    content_image = load_image(args.content_image, scale=args.content_scale)
     content_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Lambda(lambda x: x.mul(255))
@@ -147,7 +147,7 @@ def stylize(args):
                 output = torch.onnx._export(style_model, content_image, args.export_onnx).cpu()
             else:
                 output = style_model(content_image).cpu()
-    utils.save_image(args.output_image, output[0])
+    save_image(args.output_image, output[0])
 
 
 def stylize_onnx_caffe2(content_image, args):

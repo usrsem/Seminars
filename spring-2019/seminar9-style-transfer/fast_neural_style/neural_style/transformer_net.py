@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 
 
 class TransformerNet(torch.nn.Module):
@@ -12,11 +13,16 @@ class TransformerNet(torch.nn.Module):
         self.conv3 = ConvLayer(64, 128, kernel_size=3, stride=2)
         self.in3 = torch.nn.InstanceNorm2d(128, affine=True)
         # Residual layers
-        self.res1 = ResidualBlock(128)
-        self.res2 = ResidualBlock(128)
-        self.res3 = ResidualBlock(128)
-        self.res4 = ResidualBlock(128)
-        self.res5 = ResidualBlock(128)
+        # self.res1 = ResidualBlock(128)
+        # self.res2 = ResidualBlock(128)
+        # self.res3 = ResidualBlock(128)
+        # self.res4 = ResidualBlock(128)
+        # self.res5 = ResidualBlock(128)
+        self.res1 = InvertedResidualBlock(128, 128)
+        self.res2 = InvertedResidualBlock(128, 128)
+        self.res3 = InvertedResidualBlock(128, 128)
+        self.res4 = InvertedResidualBlock(128, 128)
+        self.res5 = InvertedResidualBlock(128, 128)
         # Upsampling Layers
         self.deconv1 = UpsampleConvLayer(128, 64, kernel_size=3, stride=1, upsample=2)
         self.in4 = torch.nn.InstanceNorm2d(64, affine=True)
@@ -26,8 +32,8 @@ class TransformerNet(torch.nn.Module):
         # Non-linearities
         self.relu = torch.nn.ReLU()
 
-    def forward(self, X):
-        y = self.relu(self.in1(self.conv1(X)))
+    def forward(self, x):
+        y = self.relu(self.in1(self.conv1(x)))
         y = self.relu(self.in2(self.conv2(y)))
         y = self.relu(self.in3(self.conv3(y)))
         y = self.res1(y)
@@ -74,6 +80,22 @@ class ResidualBlock(torch.nn.Module):
         out = self.in2(self.conv2(out))
         out = out + residual
         return out
+
+
+class InvertedResidualBlock(nn.Module):
+    def __init__(self, inp, oup):
+        super(InvertedResidualBlock, self).__init__()
+
+        self.conv = nn.Sequential(
+            nn.Conv2d(inp, inp, 3, 1, padding=1, dilation=1, groups=inp, bias=False),
+            nn.InstanceNorm2d(inp),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(inp, oup, 1, 1, 0, bias=False),
+            nn.InstanceNorm2d(oup)
+        )
+
+    def forward(self, x):
+        return x + self.conv(x)
 
 
 class UpsampleConvLayer(torch.nn.Module):
